@@ -4,7 +4,6 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 const NAMESPACE = "pi-intercom-hook";
 const REGISTER = "intercom:extension-register";
 const READY = "intercom:extension-registry-ready";
-const LIMIT = 64;
 export const MAX_OUTPUT_BYTES = 256 * 1024;
 const CHUNK_BYTES = 6 * 1024;
 const MAX_PARTS = Math.ceil(MAX_OUTPUT_BYTES / CHUNK_BYTES);
@@ -123,10 +122,6 @@ export function createHook(
     async function subscribe(from: string, payload: Record<string, any>) {
         const key = `${from}/${payload.watchId}`;
         if (subscriptions.has(key)) return;
-        if (subscriptions.size >= LIMIT) {
-            publish({ kind: "rejected", to: from, watchId: payload.watchId, error: "Worker subscription limit reached (64)" });
-            return;
-        }
         const entry: Subscription = { to: from, watchId: payload.watchId, endpointEpoch: payload.endpointEpoch, status: "validating" };
         subscriptions.set(key, entry);
         const epoch = generation;
@@ -282,7 +277,6 @@ export function createHook(
             const target = resolveTarget(await current.listSessions(), input.to.trim(), selfId()!);
             signal?.throwIfAborted();
             if (!active || epoch !== generation || current !== available()) throw new Error("Coordinator session changed; retry");
-            if (watches.size >= LIMIT) throw new Error("Watch limit reached (64); cancel records first");
             const watch: Watch = { watchId: randomUUID(), sessionId: target.id, endpointEpoch: target.endpointEpoch, status: "subscribing" };
             watches.set(watch.watchId, watch);
             let timer: ReturnType<typeof setTimeout> | undefined;

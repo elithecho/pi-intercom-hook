@@ -203,14 +203,20 @@ test("dispatch and worker publish failures remain inspectable, not success claim
     assert.match((await w.list()).subscriptions[0].error, /Output transport failed/);
 });
 
-test("64-record bounds on coordinator and worker", async () => {
+test("coordinator and worker accept subscriptions beyond 64 records", async () => {
     const { coordinator: c, worker: w, peer } = await pair();
-    for (let i = 0; i < 64; i++) await c.watch("worker");
-    await assert.rejects(c.watch("worker"), /Watch limit/);
+    for (let i = 0; i < 65; i++) await c.watch("worker");
     const other = peer("other");
     await other.fire("session_start");
-    await assert.rejects(other.watch("worker"), /Worker subscription limit/);
-    assert.equal((await w.list()).subscriptions.length, 64);
+    await other.watch("worker");
+    assert.equal((await c.list()).watches.length, 65);
+    assert.equal((await w.list()).subscriptions.length, 66);
+    await w.text("done");
+    await w.fire("agent_settled", { aborted: false });
+    await flush();
+    assert.equal((await c.list()).watches.length, 0);
+    assert.equal((await other.list()).watches.length, 0);
+    assert.equal((await w.list()).subscriptions.length, 0);
 });
 
 test("capture bounds memory before joining/encoding, preserving text-block and Unicode boundaries", () => {
